@@ -465,7 +465,7 @@ exports.getSchemeApplications = async (req, res) => {
     const applications = await prisma.schemeApplication.findMany({
       include: {
         scheme: { select: { scheme_name: true } },
-        citizen: { select: { full_name: true, mobile: true, email: true } }
+        user: { select: { full_name: true, mobile: true, email: true } }
       },
       orderBy: { submitted_at: 'desc' }
     });
@@ -474,9 +474,9 @@ exports.getSchemeApplications = async (req, res) => {
       id: app.id,
       scheme_name: app.scheme.scheme_name,
       scheme_id: app.scheme_id,
-      citizen_name: app.citizen.full_name,
-      citizen_mobile: app.citizen.mobile || 'N/A',
-      citizen_email: app.citizen.email,
+      citizen_name: app.user.full_name,
+      citizen_mobile: app.user.mobile || 'N/A',
+      citizen_email: app.user.email,
       status: app.status,
       submitted_at: app.submitted_at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
       form_data: app.form_data,
