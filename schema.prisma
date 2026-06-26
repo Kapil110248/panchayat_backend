@@ -1,0 +1,555 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model AdminNotification {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  title      String
+  message    String   
+  type       String
+  is_read    Boolean  @default(false)
+  action_url String?
+  created_at DateTime @default(now())
+  sender_id String? @db.ObjectId
+  user       User?    @relation(fields: [sender_id], references: [id])
+
+  @@index([sender_id])
+  @@map("adminnotification")
+}
+
+model AgriScheme {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String  
+  benefit     String
+  link        String?
+  @@map("agrischeme")
+}
+
+model Attendance {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  employee_id String @db.ObjectId
+  date        DateTime
+  status      String
+  check_in    String?
+  check_out   String?
+  marked_at   DateTime @default(now())
+  employee    Employee @relation(fields: [employee_id], references: [id], onDelete: Cascade)
+
+  @@index([employee_id])
+  @@map("attendance")
+}
+
+model CampRegistration {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  camp_id String @db.ObjectId
+  citizen_id String @db.ObjectId
+  registered_at DateTime   @default(now())
+  healthcamp    HealthCamp @relation(fields: [camp_id], references: [id], onDelete: Cascade)
+  user          User       @relation(fields: [citizen_id], references: [id])
+
+  @@unique([camp_id, citizen_id])
+  @@index([citizen_id])
+  @@map("campregistration")
+}
+
+model Certificate {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  application_number                     String             @unique()
+  citizen_id String @db.ObjectId
+  certificate_type                       String
+  data                                   String             
+  purpose                                String             
+  status                                 certificate_status @default(pending)
+  submitted_at                           DateTime           @default(now())
+  processed_at                           DateTime?
+  processed_by_id String? @db.ObjectId
+  remarks                                String?            
+  certificate_url                        String?
+  user_certificate_citizen_idTouser      User               @relation("certificate_citizen_idTouser", fields: [citizen_id], references: [id])
+  user_certificate_processed_by_idTouser User?              @relation("certificate_processed_by_idTouser", fields: [processed_by_id], references: [id])
+
+  @@index([citizen_id])
+  @@index([processed_by_id])
+  @@map("certificate")
+}
+
+model CitizenNotification {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  citizen_id String @db.ObjectId
+  title      String
+  message    String   
+  type       String
+  is_read    Boolean  @default(false)
+  action_url String?
+  created_at DateTime @default(now())
+  user       User     @relation(fields: [citizen_id], references: [id])
+
+  @@index([citizen_id])
+  @@map("citizennotification")
+}
+
+model CitizenProfile {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  user_id String @db.ObjectId                    @unique()
+  aadhaar_number     String                 @unique()
+  date_of_birth      DateTime?
+  gender             citizenprofile_gender?
+  address            String?                
+  village            String?
+  pincode            String?
+  avatar_url         String?
+  father_name        String?
+  ration_card_number String?
+  ration_card_type   String?                @default("APL")
+  user               User                   @relation(fields: [user_id], references: [id])
+  @@map("citizenprofile")
+}
+
+model Complaint {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  complaint_number                    String           @unique()
+  citizen_id String @db.ObjectId
+  complaint_type                      String
+  subject                             String
+  description                         String           
+  location                            String?
+  status                              complaint_status @default(open)
+  priority                            String           @default("medium")
+  assigned_to_id String? @db.ObjectId
+  submitted_at                        DateTime         @default(now())
+  resolved_at                         DateTime?
+  image_url                           String?
+  admin_reply                         String?          
+  citizen_confirmed                   Boolean          @default(false)
+  resolution_image_url                String?
+  user_complaint_assigned_to_idTouser User?            @relation("complaint_assigned_to_idTouser", fields: [assigned_to_id], references: [id])
+  user_complaint_citizen_idTouser     User             @relation("complaint_citizen_idTouser", fields: [citizen_id], references: [id])
+
+  @@index([assigned_to_id])
+  @@index([citizen_id])
+  @@map("complaint")
+}
+
+model DevelopmentProject {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  name                String
+  category            String
+  budget              Float
+  start_date          DateTime
+  expected_completion DateTime
+  progress            Int      @default(0)
+  before_image        String?
+  after_image         String?
+  status              String   @default("planning")
+  created_at          DateTime @default(now())
+  updated_by          String?
+  @@map("developmentproject")
+}
+
+model EmergencyAlert {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  title      String
+  message    String   
+  alert_type String
+  active     Boolean  @default(true)
+  created_at DateTime @default(now())
+  @@map("emergencyalert")
+}
+
+model Employee {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  designation  String
+  user_id String? @db.ObjectId           @unique()
+  created_at   DateTime       @default(now())
+  attendance   Attendance[]
+  user         User?          @relation(fields: [user_id], references: [id])
+  leaverequest LeaveRequest[]
+  @@map("employee")
+}
+
+model Family {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  head_id String @db.ObjectId      @unique()
+  ward_number                        String
+  address                            String   
+  created_at                         DateTime @default(now())
+  user_family_head_idTouser          User     @relation("family_head_idTouser", fields: [head_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user_user_family_member_idTofamily User[]   @relation("user_family_member_idTofamily")
+  @@map("family")
+}
+
+model Feedback {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  citizen_id String @db.ObjectId
+  service_name String
+  rating       Int
+  comments     String?  
+  submitted_at DateTime @default(now())
+  user         User     @relation(fields: [citizen_id], references: [id])
+
+  @@index([citizen_id])
+  @@map("feedback")
+}
+
+model GramSabhaMeeting {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  date_time        DateTime
+  agenda           String            
+  location         String
+  status           String            @default("scheduled")
+  notice_published Boolean           @default(false)
+  minutes_url      String?
+  created_at       DateTime          @default(now())
+  resolutions      String?           
+  started_at       DateTime?
+  completed_at     DateTime?
+  sabhaattendance  SabhaAttendance[]
+  sabhasuggestion  SabhaSuggestion[]
+  @@map("gramsabhameeting")
+}
+
+model HealthCamp {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  camp_name        String
+  camp_type        String
+  date             DateTime
+  location         String
+  description      String             
+  timing           String?
+  organizing_team  String?
+  target_audience  String?
+  required_docs    String?
+  campregistration CampRegistration[]
+  @@map("healthcamp")
+}
+
+model LeaveRequest {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  employee_id String @db.ObjectId
+  start_date  DateTime
+  end_date    DateTime
+  reason      String    
+  status      String    @default("pending")
+  reviewed_at DateTime?
+  employee    Employee  @relation(fields: [employee_id], references: [id], onDelete: Cascade)
+
+  @@index([employee_id])
+  @@map("leaverequest")
+}
+
+model Notice {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  title         String
+  content       String    
+  notice_type   String
+  is_published  Boolean   @default(false)
+  expiry_date   DateTime?
+  created_at    DateTime  @default(now())
+  created_by_id String @db.ObjectId
+  user          User      @relation(fields: [created_by_id], references: [id])
+
+  @@index([created_by_id])
+  @@map("notice")
+}
+
+model RationReceipt {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  citizen_id String @db.ObjectId
+  month_year  String
+  received_at DateTime @default(now())
+  user        User     @relation(fields: [citizen_id], references: [id])
+
+  @@index([citizen_id])
+  @@map("rationreceipt")
+}
+
+model RationSchedule {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  distribution_date    DateTime
+  timing_description   String
+  items_available      String
+  shop_name            String?
+  card_type            String?
+  ward_area            String?
+  special_instructions String?  
+  status               String   @default("active")
+  contact_number       String?
+  @@map("rationschedule")
+}
+
+model RegistrationRequest {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  full_name        String
+  date_of_birth    DateTime
+  gender           registrationrequest_gender
+  aadhaar_number   String                     @unique()
+  email            String                     @unique()
+  mobile           String
+  address          String                     
+  village          String                     @default("Sarahi")
+  pincode          String
+  password_hash    String
+  status           registrationrequest_status @default(pending)
+  submitted_at     DateTime                   @default(now())
+  reviewed_at      DateTime?
+  reviewed_by_id String? @db.ObjectId
+  rejection_reason String?                    
+  father_name      String?
+  user             User?                      @relation(fields: [reviewed_by_id], references: [id])
+
+  @@index([reviewed_by_id])
+  @@map("registrationrequest")
+}
+
+model SabhaAttendance {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  meeting_id String @db.ObjectId
+  citizen_id String @db.ObjectId
+  marked_at        DateTime         @default(now())
+  user             User             @relation(fields: [citizen_id], references: [id])
+  gramsabhameeting GramSabhaMeeting @relation(fields: [meeting_id], references: [id], onDelete: Cascade)
+
+  @@unique([meeting_id, citizen_id])
+  @@index([citizen_id])
+  @@map("sabhaattendance")
+}
+
+model SabhaSuggestion {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  meeting_id String @db.ObjectId
+  citizen_id String @db.ObjectId
+  suggestion_text      String                 
+  submitted_at         DateTime               @default(now())
+  user                 User                   @relation(fields: [citizen_id], references: [id])
+  gramsabhameeting     GramSabhaMeeting       @relation(fields: [meeting_id], references: [id], onDelete: Cascade)
+  sabhasuggestionreply SabhaSuggestionReply[]
+
+  @@index([citizen_id])
+  @@index([meeting_id])
+  @@map("sabhasuggestion")
+}
+
+model SabhaSuggestionReply {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  suggestion_id String @db.ObjectId
+  citizen_id String @db.ObjectId
+  reply_text      String          
+  created_at      DateTime        @default(now())
+  user            User            @relation(fields: [citizen_id], references: [id])
+  sabhasuggestion SabhaSuggestion @relation(fields: [suggestion_id], references: [id], onDelete: Cascade)
+
+  @@index([citizen_id])
+  @@index([suggestion_id])
+  @@map("sabhasuggestionreply")
+}
+
+model Scheme {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  scheme_name       String
+  description       String              
+  is_active         Boolean             @default(true)
+  created_by_id String @db.ObjectId
+  created_at        DateTime            @default(now())
+  benefit           String?
+  category          String?
+  color_theme       String?
+  icon              String?
+  form_fields       String?             
+  user              User                @relation(fields: [created_by_id], references: [id])
+  schemeapplication SchemeApplication[]
+
+  @@index([created_by_id])
+  @@map("scheme")
+}
+
+model SchemeApplication {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  scheme_id String @db.ObjectId
+  citizen_id String @db.ObjectId
+  status        String   @default("Pending")
+  submitted_at  DateTime @default(now())
+  form_data     String?  
+  admin_remarks String?  
+  result_file   String?
+  user          User     @relation(fields: [citizen_id], references: [id])
+  scheme        Scheme   @relation(fields: [scheme_id], references: [id], onDelete: Cascade)
+
+  @@index([citizen_id])
+  @@index([scheme_id])
+  @@map("schemeapplication")
+}
+
+model SeasonalAdvisory {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  crop_name        String
+  advisory_message String  
+  month            String
+  fertilizer_info  String? 
+  @@map("seasonaladvisory")
+}
+
+model SuggestionVote {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  suggestion_id String @db.ObjectId
+  citizen_id String @db.ObjectId
+  user           User           @relation(fields: [citizen_id], references: [id])
+  usersuggestion UserSuggestion @relation(fields: [suggestion_id], references: [id], onDelete: Cascade)
+
+  @@unique([suggestion_id, citizen_id])
+  @@index([citizen_id])
+  @@map("suggestionvote")
+}
+
+model TaxRecord {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  citizen_id String @db.ObjectId
+  tax_type       String
+  amount         Float
+  due_date       DateTime
+  status         String    @default("unpaid")
+  payment_date   DateTime?
+  transaction_id String?
+  created_at     DateTime  @default(now())
+  penalty_rate   Float     @default(0)
+  user           User      @relation(fields: [citizen_id], references: [id])
+
+  @@index([citizen_id])
+  @@map("taxrecord")
+}
+
+model User {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  email                                               String                 @unique()
+  password_hash                                       String
+  role                                                user_role              @default(citizen)
+  full_name                                           String
+  mobile                                              String?
+  is_active                                           Boolean                @default(true)
+  created_at                                          DateTime               @default(now())
+  updated_at                                          DateTime
+  family_member_id String? @db.ObjectId
+  address                                             String?                
+  avatar_url                                          String?
+  bio                                                 String?                
+  date_of_birth                                       DateTime?
+  adminnotification                                   AdminNotification[]
+  campregistration                                    CampRegistration[]
+  certificate_certificate_citizen_idTouser            Certificate[]          @relation("certificate_citizen_idTouser")
+  certificate_certificate_processed_by_idTouser       Certificate[]          @relation("certificate_processed_by_idTouser")
+  citizennotification                                 CitizenNotification[]
+  citizenprofile                                      CitizenProfile?
+  complaint_complaint_assigned_to_idTouser            Complaint[]            @relation("complaint_assigned_to_idTouser")
+  complaint_complaint_citizen_idTouser                Complaint[]            @relation("complaint_citizen_idTouser")
+  employee                                            Employee?
+  family_family_head_idTouser                         Family?                @relation("family_head_idTouser")
+  feedback                                            Feedback[]
+  notice                                              Notice[]
+  rationreceipt                                       RationReceipt[]
+  registrationrequest                                 RegistrationRequest[]
+  sabhaattendance                                     SabhaAttendance[]
+  sabhasuggestion                                     SabhaSuggestion[]
+  sabhasuggestionreply                                SabhaSuggestionReply[]
+  scheme                                              Scheme[]
+  schemeapplication                                   SchemeApplication[]
+  suggestionvote                                      SuggestionVote[]
+  taxrecord                                           TaxRecord[]
+  family_user_family_member_idTofamily                Family?                @relation("user_family_member_idTofamily", fields: [family_member_id], references: [id])
+  usersuggestion_usersuggestion_citizen_idTouser      UserSuggestion[]       @relation("usersuggestion_citizen_idTouser")
+  usersuggestion_usersuggestion_processed_by_idTouser UserSuggestion[]       @relation("usersuggestion_processed_by_idTouser")
+
+  @@index([family_member_id])
+  @@map("user")
+}
+
+model UserSuggestion {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  citizen_id String @db.ObjectId
+  title                                     String
+  description                               String           
+  status                                    String           @default("pending")
+  submitted_at                              DateTime         @default(now())
+  processed_by_id String? @db.ObjectId
+  suggestionvote                            SuggestionVote[]
+  user_usersuggestion_citizen_idTouser      User             @relation("usersuggestion_citizen_idTouser", fields: [citizen_id], references: [id])
+  user_usersuggestion_processed_by_idTouser User?            @relation("usersuggestion_processed_by_idTouser", fields: [processed_by_id], references: [id])
+
+  @@index([citizen_id])
+  @@index([processed_by_id])
+  @@map("usersuggestion")
+}
+
+model VillageAsset {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  name                 String
+  asset_type           String
+  location             String
+  condition            String
+  last_inspection_date DateTime?
+  image_url            String?
+  created_at           DateTime  @default(now())
+  @@map("villageasset")
+}
+
+model WaterSupplySchedule {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  area       String
+  timing     String
+  status     String   @default("active")
+  notes      String?  
+  updated_at DateTime
+  @@map("watersupplyschedule")
+}
+
+model WaterTank {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  location    String
+  capacity    Float
+  condition   String
+  last_filled DateTime?
+  @@map("watertank")
+}
+
+enum registrationrequest_gender {
+  male
+  female
+  other
+}
+
+enum user_role {
+  citizen
+  clerk
+  admin
+}
+
+enum citizenprofile_gender {
+  male
+  female
+  other
+}
+
+enum certificate_status {
+  pending
+  approved
+  rejected
+}
+
+enum complaint_status {
+  open
+  in_progress
+  resolution_proposed
+  resolved
+  closed
+}
+
+enum registrationrequest_status {
+  pending
+  approved
+  rejected
+}
