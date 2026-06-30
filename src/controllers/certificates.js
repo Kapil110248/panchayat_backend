@@ -4,8 +4,12 @@ const { v4: uuidv4 } = require('uuid');
 exports.getCertificates = async (req, res) => {
   try {
     if (['admin', 'clerk'].includes(req.user.role)) {
-      const certs = await prisma.certificate.findMany({ include: { citizen: true }, orderBy: { submitted_at: 'desc' } });
-      res.json(certs);
+      const certs = await prisma.certificate.findMany({ include: { user_certificate_citizen_idTouser: true }, orderBy: { submitted_at: 'desc' } });
+      const mapped = certs.map(c => {
+        const { user_certificate_citizen_idTouser, ...rest } = c;
+        return { ...rest, citizen: user_certificate_citizen_idTouser };
+      });
+      res.json(mapped);
     } else {
       const certs = await prisma.certificate.findMany({ where: { citizen_id: req.user.id }, orderBy: { submitted_at: 'desc' } });
       res.json(certs);

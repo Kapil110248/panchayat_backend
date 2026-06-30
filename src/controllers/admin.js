@@ -1,5 +1,5 @@
 const { prisma } = require('../db');
-const { getPasswordHash } = require('../utils/security');
+const { getPasswordHash, verifyPassword } = require('../utils/security');
 const fs = require('fs');
 const path = require('path');
 
@@ -63,7 +63,8 @@ exports.approveRegistrationRequest = async (req, res) => {
     const newUser = await prisma.user.create({
       data: {
         email: request.email, password_hash: request.password_hash, role: "citizen",
-        full_name: request.full_name, mobile: request.mobile, is_active: true
+        full_name: request.full_name, mobile: request.mobile, is_active: true,
+        updated_at: new Date()
       }
     });
     
@@ -109,12 +110,13 @@ exports.rejectRegistrationRequest = async (req, res) => {
 exports.getClerks = async (req, res) => {
   try {
     const clerks = await prisma.user.findMany({
-      where: { role: "clerk" }, include: { employee: true, processed_certs: true }
+      where: { role: "clerk" }, include: { employee: true, certificate_certificate_processed_by_idTouser: true }
     });
     const result = clerks.map(clerk => ({
       id: clerk.id, name: clerk.full_name, email: clerk.email, mobile: clerk.mobile,
       status: clerk.is_active ? "Active" : "Inactive", village: "Panchayat Office",
-      tasksHandled: clerk.processed_certs ? clerk.processed_certs.length : 0
+      avatar_url: clerk.avatar_url,
+      tasksHandled: clerk.certificate_certificate_processed_by_idTouser ? clerk.certificate_certificate_processed_by_idTouser.length : 0
     }));
     res.json({ clerks: result });
   } catch (error) {
@@ -131,7 +133,8 @@ exports.createClerk = async (req, res) => {
     const newUser = await prisma.user.create({
       data: {
         full_name: data.full_name, email: data.email, mobile: data.mobile,
-        password_hash: getPasswordHash(data.password), role: "clerk", is_active: true
+        password_hash: getPasswordHash(data.password), role: "clerk", is_active: true,
+        updated_at: new Date()
       }
     });
     await prisma.employee.create({ data: { name: data.full_name, designation: "clerk", user_id: newUser.id } });
@@ -142,16 +145,119 @@ exports.createClerk = async (req, res) => {
   }
 };
 
+exports.getClerkMessages = async (req, res) => {
+  try {
+    const clerkId = req.params.id;
+    const messages = await prisma.citizenNotification.findMany({
+      where: { citizen_id: clerkId, type: "admin_message" },
+      orderBy: { created_at: "desc" }
+    });
+    res.json({ messages });
+  } catch (error) {
+    console.error("getClerkMessages Error:", error);
+    res.status(500).json({ detail: "Internal Server Error" });
+  }
+};
+
+exports.sendClerkMessage = async (req, res) => {
+  try {
+    const clerkId = req.params.id;
+    const { message } = req.body;
+    
+    // Create a notification for the clerk
+    await prisma.citizenNotification.create({
+      data: {
+        citizen_id: clerkId,
+        title: "Message from Administrator",
+        message: message,
+        type: "admin_message",
+        action_url: "/clerk/dashboard"
+      }
+    });
+    
+    res.json({ message: "Message sent successfully" });
+  } catch (error) {
+    console.error("sendClerkMessage Error:", error);
+    res.status(500).json({ detail: "Internal Server Error" });
+  }
+};
+
+exports.updateClerkStatus = async (req, res) => {
+  try {
+    const clerkId = req.params.id;
+    const { status } = req.body; // Expecting "Active" or "Inactive"
+    
+    const is_active = status === "Active";
+    
+    await prisma.user.update({
+      where: { id: clerkId },
+      data: { is_active, updated_at: new Date() }
+    });
+    
+    res.json({ message: `Clerk status updated to ${status}` });
+  } catch (error) {
+    console.error("updateClerkStatus Error:", error);
+    res.status(500).json({ detail: "Internal Server Error" });
+  }
+};
+
+exports.deleteClerk = async (req, res) => {
+  try {
+    const clerkId = req.params.id;
+    
+    // Find the associated employee record
+    const employee = await prisma.employee.findFirst({ where: { user_id: clerkId } });
+    if (employee) {
+      await prisma.employee.delete({ where: { id: employee.id } });
+    }
+    
+    // Delete the user record
+    await prisma.user.delete({ where: { id: clerkId } });
+    
+    res.json({ message: "Clerk removed successfully" });
+  } catch (error) {
+    console.error("deleteClerk Error:", error);
+    res.status(500).json({ detail: "Internal Server Error" });
+  }
+};
+
+exports.updateAdminPassword = async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+    if (!current_password || !new_password) {
+      return res.status(400).json({ detail: "Both current and new password are required" });
+    }
+
+    const user = req.user;
+    
+    if (!verifyPassword(current_password, user.password_hash)) {
+      return res.status(401).json({ detail: "Incorrect current password" });
+    }
+
+    const password_hash = getPasswordHash(new_password);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password_hash }
+    });
+
+    res.json({ message: "Password updated successfully" });
+  } catch (error) {
+    console.error("Update password error:", error);
+    res.status(500).json({ detail: "Internal Server Error" });
+  }
+};
+
 exports.getComplaints = async (req, res) => {
   try {
     const complaints = await prisma.complaint.findMany({
-      include: { citizen: true }, orderBy: { submitted_at: 'desc' }
+      include: { user_complaint_citizen_idTouser: true }, orderBy: { submitted_at: 'desc' }
     });
     const result = complaints.map(c => {
       const statusStr = c.status;
+      const citizen = c.user_complaint_citizen_idTouser;
       return {
-        id: c.id, ref_id: c.complaint_number, citizen: c.citizen ? c.citizen.full_name : "Unknown",
-        citizen_mobile: c.citizen ? c.citizen.mobile : "N/A",
+        id: c.id, ref_id: c.complaint_number, citizen: citizen ? citizen.full_name : "Unknown",
+        citizen_mobile: citizen ? citizen.mobile : "N/A",
         category: c.complaint_type, date: c.submitted_at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
         status: statusStr === "in_progress" ? "In Progress" : statusStr === "resolution_proposed" ? "Resolution Proposed" : statusStr.charAt(0).toUpperCase() + statusStr.slice(1),
         urgent: c.priority.toLowerCase() === "high", description: c.description, image_url: c.image_url,
@@ -248,12 +354,12 @@ exports.sendComplaintMessage = async (req, res) => {
 
 exports.getNotices = async (req, res) => {
   try {
-    const notices = await prisma.notice.findMany({ include: { creator: true }, orderBy: { created_at: 'desc' } });
+    const notices = await prisma.notice.findMany({ include: { user: true }, orderBy: { created_at: 'desc' } });
     const result = notices.map(n => ({
       id: n.id, title: n.title, content: n.content, notice_type: n.notice_type, is_published: n.is_published,
       created_at: n.created_at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
       expiry_date: n.expiry_date ? n.expiry_date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null,
-      created_by: n.creator ? n.creator.full_name : "Unknown"
+      created_by: n.user ? n.user.full_name : "Unknown"
     }));
     res.json({ notices: result });
   } catch (error) {
@@ -279,6 +385,10 @@ exports.deleteNotice = async (req, res) => {
     await prisma.notice.delete({ where: { id: req.params.id } });
     res.json({ message: "Notice deleted successfully" });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.json({ message: "Notice deleted successfully" });
+    }
+    console.error("Error in deleteNotice:", error);
     res.status(500).json({ detail: "Internal Server Error" });
   }
 };

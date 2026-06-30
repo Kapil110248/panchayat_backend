@@ -8,7 +8,7 @@ exports.getNotifications = async (req, res) => {
       orderBy: { created_at: 'desc' }, 
       take: 20,
       include: {
-        sender: {
+        user: {
           select: {
             full_name: true,
             avatar_url: true,
@@ -17,8 +17,12 @@ exports.getNotifications = async (req, res) => {
         }
       }
     });
+    const mappedNotifications = notifications.map(notif => {
+      const { user, ...rest } = notif;
+      return { ...rest, sender: user };
+    });
     const unread_count = await prisma.adminNotification.count({ where: { is_read: false, sender_id: { not: req.user.id } } });
-    res.json({ notifications, unread_count });
+    res.json({ notifications: mappedNotifications, unread_count });
   } catch (error) { res.status(500).json({ detail: "Internal Server Error" }); }
 };
 
